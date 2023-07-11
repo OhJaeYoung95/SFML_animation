@@ -1,11 +1,13 @@
 #include "stdafx.h"
 #include "Player.h"
 #include "InputMgr.h"
-#include "Utils.h"
+#include "Framework.h"
+
 
 void Player::Init()
 {
-	textureId = "graphics/sprite_sheet.png";
+	std::string textureId = "graphics/sprite_sheet.png";
+
 	// Idle
 	{
 		AnimationClip clip;
@@ -14,7 +16,6 @@ void Player::Init()
 		clip.loopType = AnimationLoopTypes::Loop;
 
 		sf::IntRect coord(0, 0, 120, 120);
-		int count = 0;
 		for (int i = 0; i < 8; ++i)
 		{
 			clip.frames.push_back({ textureId, coord });
@@ -32,16 +33,15 @@ void Player::Init()
 		clip.loopType = AnimationLoopTypes::Loop;
 
 		sf::IntRect coord(0, 120, 120, 120);
-		int count = 0;
 		for (int i = 0; i < 8; ++i)
 		{
 			clip.frames.push_back({ textureId, coord });
 			coord.left += coord.width;
 		}
-		clip.frames.push_back({ textureId, sf::IntRect(0, 240, 120, 120)});
-
+		clip.frames.push_back({ textureId, sf::IntRect(0, 240, 120, 120) });
 		animation.AddClip(clip);
 	}
+
 	// Jump
 	{
 		AnimationClip clip;
@@ -50,16 +50,15 @@ void Player::Init()
 		clip.loopType = AnimationLoopTypes::Single;
 
 		sf::IntRect coord(0, 360, 120, 120);
-		int count = 0;
 		for (int i = 0; i < 7; ++i)
 		{
 			clip.frames.push_back({ textureId, coord });
 			coord.left += coord.width;
 		}
 
-		clip.frames[6].action = []() {
-			std::cout << "On Complete Jump Clip" << std::endl;
-		};
+		//clip.frames[6].action = []() {
+		//	std::cout << "On Complete Jump Clip" << std::endl;
+		//};
 
 		animation.AddClip(clip);
 	}
@@ -67,99 +66,88 @@ void Player::Init()
 	animation.SetTarget(&sprite);
 
 	SetOrigin(Origins::BC);
-
 }
 
 void Player::Reset()
 {
 	animation.Play("Idle");
-	SetPosition(0, 0);
 	SetOrigin(origin);
+	SetPosition({ 0, 0 });
+	SetFlipX(false);
 }
 
 void Player::Update(float dt)
 {
 	animation.Update(dt);
+	float h = INPUT_MGR.GetAxis(Axis::Horizontal);
 
-	//float h = INPUT_MGR.GetAxis(Axis::Horizontal);
-
-	//// 플립
-	//if (h != 0.f)
-	//{
-	//	bool flip = h < 0.f;
-	//	if (GetFlipX() != flip)
-	//	{
-	//		SetFlipX(flip);
-	//	}
-	//}
-
-	//// 점프
-	//if (isGround && INPUT_MGR.GetKeyDown(sf::Keyboard::Space))
-	//{
-	//	velocity.y += JumpForce;
-	//	animation.Play("Jump");
-	//	isGround = false;
-	//}
-
-	//// 이동
-	//velocity.x = h * speed;
-	//velocity.y += gravity  dt;
-	//position += velocity * dt;
-
-	//if (position.y > 0.f)
-	//{
-	//	isGround = true;
-	//	position.y = 0.f;
-	//	velocity.y = 0.f;
-	//}
-
-	// 애니메이션
-
-
-
-	dir.x = INPUT_MGR.GetAxisRaw(Axis::Horizontal);
-
-
-	if (INPUT_MGR.GetKeyDown(sf::Keyboard::Space))
+	// 플립
+	if (h != 0.f)
 	{
-		velocity = jumpForce;
+		bool flip = h < 0.f;
+		if (GetFlipX() != flip)
+		{
+			SetFlipX(flip);
+		}
+	}
+
+	// 점프
+	if (isGround && INPUT_MGR.GetKeyDown(sf::Keyboard::Space))
+	{
+		velocity.y += JumpForce;
 		animation.Play("Jump");
-		isJump = true;
+		isGround = false;
 	}
 
-	if (INPUT_MGR.GetKeyDown(sf::Keyboard::A) && !isJump)
+	// 이동
+	velocity.x = h * speed;
+	velocity.y += gravity * dt;
+	position += velocity * dt;
+
+	// 바닥 충돌 처리
+	if (position.y > 0.f)
 	{
-		animation.Play("Move");
-		sprite.setScale(-1.0f, 1.f);
-		isMove = true;
-	}
-	if (INPUT_MGR.GetKeyDown(sf::Keyboard::D) && !isJump)
-	{
-		animation.Play("Move");
-		sprite.setScale(1.0f, 1.f);
-		isMove = true;
-	}
-	if (!isJump && !isMove)
-	{
-		animation.Play("Idle");
+		isGround = true;
+		position.y = 0.f;
+		velocity.y = 0.f;
 	}
 
-
-
-	position += dir * dt * speed;
-	velocity -= gravity * dt * (jumpSpeed+4.f);
-	position.y -= velocity * dt * jumpSpeed;
-
-
-
-	position.y += gravity * dt;
-	if (position.y >= 210.f)
-	{
-		isJump = false;
-		velocity = 0;
-		position.y = 210.f;
-	}
 	SetPosition(position);
 
-	SpriteGo::Update(dt);
+	// 에니메이션
+	if (animation.GetCurrentClipId() == "Idle")
+	{
+		if (isGround && h != 0.f)
+		{
+			animation.Play("Move");
+		}
+	}
+	else if (animation.GetCurrentClipId() == "Move")
+	{
+		if (isGround && h == 0.f)
+		{
+			animation.Play("Idle");
+		}
+	}
+	else if (animation.GetCurrentClipId() == "Jump")
+	{
+		if (isGround)
+		{
+			animation.Play((h == 0.f) ? "Idle" : "Move");
+		}
+	}
+}
+
+bool Player::GetFlipX() const
+{
+	return filpX;
+}
+
+void Player::SetFlipX(bool filp)
+{
+	filpX = filp;
+
+	sf::Vector2f scale = sprite.getScale();
+	scale.x = !filpX ? abs(scale.x) : -abs(scale.x);
+	sprite.setScale(scale);
 }
